@@ -4,7 +4,7 @@
 import Debug from "debug";
 import { io } from "../../server";
 import { Socket } from "socket.io";
-import { deleteUser, getUserById } from "../services/user_service";
+import { deleteUsersInRoom, getUserById } from "../services/user_service";
 import {
 	ClientToServerEvents,
 	LiveGameData,
@@ -35,9 +35,13 @@ export const handleConnection = async (
 		// Get the live games
 		const liveGameRooms = await findGameRooms();
 
-		// Only include rooms with two users (a live game)
+		// Only include rooms with two users and an in-progress round count
 		const liveGameRoomsFiltered = liveGameRooms.filter(
-			(game) => Array.isArray(game.users) && game.users.length >= 2,
+			(game) =>
+				Array.isArray(game.users) &&
+				game.users.length >= 2 &&
+				(game.userCount ?? game.users.length) >= 2 &&
+				(game.roundCount ?? 0) <= 10,
 		);
 
 		// Create a payload for every live game (use safe defaults)
@@ -96,18 +100,25 @@ export const handleConnection = async (
 			const user = await getUserById(socket.id);
 			if (!user) return;
 
-			io.emit("removeLiveGame", user.gameRoomId);
+			const gameRoomId = user.gameRoomId;
 
-			const gameRoom = await findGameRoomById(user.gameRoomId);
-			if (!gameRoom) return;
+			io.emit("removeLiveGame", gameRoomId);
+			socket.broadcast.to(gameRoomId).emit("opponentLeft");
 
-			socket.broadcast.to(gameRoom.id).emit("opponentLeft");
+			// Remove this room from the local "waiting rooms" list (don't pop blindly)
+			const idx = availableGameRooms.findIndex(
+				(r) => r.id === gameRoomId,
+			);
+			if (idx !== -1) availableGameRooms.splice(idx, 1);
 
-			availableGameRooms.pop();
-
-			// Delete gameRoom
-			const deletedRoom = await deleteGameRoom(gameRoom.id);
-			debug("Room deleted:", deletedRoom);
+			// Best-effort cleanup in DB
+			try {
+				await deleteUsersInRoom(gameRoomId);
+				const deletedRoom = await deleteGameRoom(gameRoomId);
+				debug("Room deleted:", deletedRoom);
+			} catch (err) {
+				debug("ERROR deleting disconnected room or its users", err);
+			}
 		} catch (err) {
 			debug(
 				"ERROR finding or deleting one of following: reactionTimes, user, gameRoom",

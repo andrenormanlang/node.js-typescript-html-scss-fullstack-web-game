@@ -7,7 +7,7 @@ Welcome to the Kill the Virus game! This is a fun and interactive game where you
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/)
-- [Prisma]
+- [Prisma](https://www.prisma.io/) 
 - [MongoDB](https://www.mamp.info/en/) (A MongoDB account and Database)
 - A good sense of humor and a knack for speed! ⚡
 

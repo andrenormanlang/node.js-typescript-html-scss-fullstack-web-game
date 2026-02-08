@@ -126,54 +126,64 @@ export const listenForVirusClick = (
 						});
 					} else {
 						// ── Game over ──
-						const userDataArray = await Promise.all(
-							updatedGameRoom.users.map(async (u) => {
-								const reactionTimes =
-									await findReactionTimesByUserId(u.id);
-								const avg = reactionTimes.length
-									? Number(
-											calcAverageReactionTime(
-												reactionTimes,
-											).toFixed(3),
-										)
-									: 0;
-								await createAverageReactionTime(u.name, avg);
-								return {
-									id: u.id,
-									name: u.name,
-									gameRoomId,
-									score: u.score!,
-									averageReactionTime: avg,
-								};
-							}),
-						);
+						// Do end-game side effects best-effort, but ALWAYS attempt cleanup.
+						try {
+							const userDataArray = await Promise.all(
+								(updatedGameRoom.users ?? []).map(async (u) => {
+									const reactionTimes =
+										await findReactionTimesByUserId(u.id);
+									const avg = reactionTimes.length
+										? Number(
+												calcAverageReactionTime(
+													reactionTimes,
+												).toFixed(3),
+											)
+										: 0;
+									await createAverageReactionTime(
+										u.name,
+										avg,
+									);
+									return {
+										id: u.id,
+										name: u.name,
+										gameRoomId,
+										score: u.score ?? 0,
+										averageReactionTime: avg,
+									};
+								}),
+							);
 
-						io.to(gameRoomId).emit("endGame", userDataArray);
+							io.to(gameRoomId).emit("endGame", userDataArray);
 
-						const [p1, p2] = updatedGameRoom.users;
-						await createPreviousGame(
-							p1.name,
-							p2.name,
-							p1.score!,
-							p2.score!,
-						);
+							const [p1, p2] = updatedGameRoom.users ?? [];
+							if (p1 && p2) {
+								await createPreviousGame(
+									p1.name,
+									p2.name,
+									p1.score ?? 0,
+									p2.score ?? 0,
+								);
+							}
 
-						const latestGamesCount = await countPreviousGames();
-						if (latestGamesCount > 10) {
-							const oldestGame = await getOldestGame();
-							if (oldestGame)
-								await deleteOldestGame(oldestGame.id);
+							const latestGamesCount = await countPreviousGames();
+							if (latestGamesCount > 10) {
+								const oldestGame = await getOldestGame();
+								if (oldestGame)
+									await deleteOldestGame(oldestGame.id);
+							}
+
+							const latestGames = await getPreviousGames();
+							io.emit("tenLatestGames", latestGames);
+
+							const bestAvg = await getBestAverageReactionTime();
+							io.emit(
+								"bestAverageReactionTime",
+								bestAvg?.name ?? null,
+								bestAvg?.averageReactionTime ?? 0,
+							);
+						} catch (err) {
+							debug("ERROR during end-game side effects", err);
 						}
-
-						const latestGames = await getPreviousGames();
-						io.emit("tenLatestGames", latestGames);
-
-						const bestAvg = await getBestAverageReactionTime();
-						io.emit(
-							"bestAverageReactionTime",
-							bestAvg?.name ?? null,
-							bestAvg?.averageReactionTime ?? 0,
-						);
 
 						io.emit("removeLiveGame", gameRoomId);
 						try {
