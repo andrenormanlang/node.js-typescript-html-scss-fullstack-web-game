@@ -6,88 +6,143 @@
 	<meta http-equiv="X-UA-Compatible" content="IE=edge" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<link rel="stylesheet" href="/src/assets/scss/style.scss" />
-	<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@800&display=swap" rel="stylesheet" />
-	<title>KTV</title>
+	<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&display=swap" rel="stylesheet" />
+	<title>Kill The Virus!</title>
 </head>
 
 <body>
+
+	<!-- ========== LOBBY ========== -->
 	<div id="lobby">
 		<header>
-			<h1>WHACK-A-VIRUS</h1>
-			<div class="stats">
-				<p>Best ever reaction time: <span id="highScore"></span></p>
-				<p>Best average time: <span id="averageHighScore"></span></p>
+			<div class="header-inner">
+				<h1>🦠 KILL <span class="accent">THE</span> VIRUS</h1>
+				<p class="tagline">Test your reflexes — crush the virus before your opponent!</p>
 			</div>
 		</header>
+
 		<main>
-			<!-- When waiting for another player -->
-			<form id="username-form">
-				<input id="username-input" type="text" required placeholder="Enter username" />
-				<button class="enter-btn" id="enter" type="submit">
-					Play Game
-				</button>
-			</form>
-			<div>
-				<div class="loader hide" id="spinner">
-					<span style="--i: 0"></span>
-					<span style="--i: 1"></span>
-					<span style="--i: 2"></span>
-					<span style="--i: 3"></span>
-					<span style="--i: 4"></span>
-					<span style="--i: 5"></span>
-					<span style="--i: 6"></span>
-					<span style="--i: 7"></span>
+			<!-- Join form -->
+			<section class="card join-card">
+				<h2><i class="fa-solid fa-gamepad"></i> Join a Game</h2>
+				<form id="username-form">
+					<input id="username-input" type="text" required placeholder="Enter your name..." maxlength="16" autocomplete="off" />
+					<button class="btn btn-primary" id="enter" type="submit">
+						<i class="fa-solid fa-play"></i> Play Game
+					</button>
+				</form>
+				<div id="waiting-msg" class="hide">
+					<div class="pulse-ring"></div>
+					<p>Waiting for an opponent&hellip;</p>
 				</div>
-			</div>
-			<h2>Live Games:</h2>
-			<ul id="gameList"></ul>
-			<div class="latestGamesWrapper">
-				<h2>Latest Games:</h2>
-				<ul id="reactionList"></ul>
-			</div>
+			</section>
+
+			<!-- Records -->
+			<section class="card records-card">
+				<h2><i class="fa-solid fa-trophy"></i> Records</h2>
+				<div class="record-row">
+					<span class="record-label">Best Reaction</span>
+					<span class="record-value" id="highScore">—</span>
+				</div>
+				<div class="record-row">
+					<span class="record-label">Best Average</span>
+					<span class="record-value" id="averageHighScore">—</span>
+				</div>
+			</section>
+
+			<!-- Live games -->
+			<section class="card">
+				<h2><i class="fa-solid fa-bolt"></i> Live Games</h2>
+				<ul id="gameList" class="game-list"></ul>
+				<p id="noLiveGames" class="empty-hint">No games in progress</p>
+			</section>
+
+			<!-- Latest games -->
+			<section class="card">
+				<h2><i class="fa-solid fa-clock-rotate-left"></i> Recent Games</h2>
+				<ul id="reactionList" class="game-list"></ul>
+				<p id="noRecentGames" class="empty-hint">No recent games</p>
+			</section>
 		</main>
 	</div>
+
+	<!-- ========== GAME ========== -->
 	<div id="game">
-		<div class="virusHeader">
-			<h2>Kill The Virus!</h2>
+		<div class="game-topbar">
+			<div class="round-badge" id="roundBadge">Round 1 / 10</div>
+			<h2 class="game-title">Kill The Virus!</h2>
+			<div id="countdown-overlay" class="countdown-overlay hide">
+				<span id="countdown-number"></span>
+			</div>
 		</div>
+
 		<div class="gamePlay">
 			<div id="gameboard">
-				<div id="gameScreen"></div>
-			</div>
-			<div id="scoreboard">
-				<div class="scoreHeader">SCOREBOARD</div>
-				<div id="score" class="currentScore">0 - 0</div>
-				<h3>Let's go!</h3>
-				<h2 id="liveTimer">0.00</h2>
-				<div class="scoreWrapper">
-					<div class="you">
-						<div class="yourName">You: </div>
-						<div id="myTime">00:00.000</div>
-					</div>
-					<div class="opponent">
-						<div class="opponentName">Opponent: </div>
-						<div id="opponentTime">00:00.000</div>
-					</div>
+				<div id="gameScreen">
+					<!-- Virus + explosions appear here -->
+				</div>
+				<div id="early-click-warn" class="early-warn hide">Too early!</div>
+				<div id="round-result" class="round-result hide">
+					<span id="round-result-text"></span>
 				</div>
 			</div>
+
+			<aside id="scoreboard">
+				<div class="sb-section sb-header">SCOREBOARD</div>
+				<div class="sb-section sb-score" id="score">0 — 0</div>
+
+				<div class="sb-section sb-timer">
+					<span class="timer-label">Timer</span>
+					<span class="timer-value" id="liveTimer">0.000</span>
+				</div>
+
+				<div class="sb-section sb-players">
+					<div class="player-row you">
+						<span class="player-name" id="yourNameLabel">You</span>
+						<span class="player-time" id="myTime">—</span>
+					</div>
+					<div class="player-row opponent">
+						<span class="player-name" id="opponentNameLabel">Opponent</span>
+						<span class="player-time" id="opponentTime">—</span>
+					</div>
+				</div>
+
+				<div class="sb-section sb-round-dots" id="roundDots"></div>
+			</aside>
 		</div>
 	</div>
+
+	<!-- ========== END GAME ========== -->
 	<div id="endGameBoard">
-		<h2 id="winnerTitle"></h2>
-		<h2 id="winner"></h2>
-		<p id="yourReactionTime"></p>
-		<p id="yourScore"></p>
-		<p id="opponentReactionTime"></p>
-		<p id="opponentScore"></p>
-		<button class="enter-btn" id="toLobby" type="submit">
-			Go back to lobby
-		</button>
+		<div class="end-card">
+			<div class="trophy-icon" id="trophyIcon">🏆</div>
+			<h2 id="winnerTitle"></h2>
+			<h2 id="winner" class="winner-name"></h2>
+
+			<div class="end-stats">
+				<div class="end-stat-block you-block">
+					<h3>You</h3>
+					<p id="yourReactionTime"></p>
+					<p id="yourScore"></p>
+				</div>
+				<div class="end-stat-divider">VS</div>
+				<div class="end-stat-block opp-block">
+					<h3>Opponent</h3>
+					<p id="opponentReactionTime"></p>
+					<p id="opponentScore"></p>
+				</div>
+			</div>
+
+			<button class="btn btn-primary" id="toLobby" type="button">
+				<i class="fa-solid fa-rotate-left"></i> Back to Lobby
+			</button>
+		</div>
 	</div>
-	</div>
+
 	<footer class="footer">
-		<p>KILL THE VIRUS!</p>
+		<p>KILL THE VIRUS &mdash; Reaction Time Challenge</p>
 	</footer>
+
 	<script type="module" src="/src/main.ts"></script>
 </body>
 

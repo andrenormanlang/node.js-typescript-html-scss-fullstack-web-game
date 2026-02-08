@@ -1,131 +1,184 @@
-import Debug from "debug"
-import { Socket } from "socket.io"
-import { deleteGameRoom, findGameRoomById, updateGameRoomsRoundCount } from "../services/gameRoom_service"
-import { createReactionTime, findReactionTimesByUserId, getBestEverReactionTime } from "../services/reactionTime_service"
-import { getUserById, updateUsersVirusClicked } from "../services/user_service"
-import { ClientToServerEvents, NewRoundData, ServerToClientEvents } from "../types/shared/socket_types"
-import { calcAverageReactionTime, calcVirusData, updateScores } from "./function_controller"
-import { io } from "../../server"
-import { countPreviousGames, getPreviousGames, getOldestGame, deleteOldestGame, createPreviousGame } from "../services/previousGame_service"
-import { createAverageReactionTime, getBestAverageReactionTime } from "../services/averageReactionTime_service"
+import Debug from "debug";
+import { Socket } from "socket.io";
+import {
+	deleteGameRoom,
+	findGameRoomById,
+	updateGameRoomsRoundCount,
+} from "../services/gameRoom_service";
+import {
+	createReactionTime,
+	findReactionTimesByUserId,
+	getBestEverReactionTime,
+} from "../services/reactionTime_service";
+import {
+	getUserById,
+	getUsersInRoom,
+	updateUsersScore,
+	updateUsersVirusClicked,
+} from "../services/user_service";
+import {
+	ClientToServerEvents,
+	NewRoundData,
+	ServerToClientEvents,
+} from "../types/shared/socket_types";
+import { calcAverageReactionTime, calcVirusData } from "./function_controller";
+import { io } from "../../server";
+import {
+	countPreviousGames,
+	getPreviousGames,
+	getOldestGame,
+	deleteOldestGame,
+	createPreviousGame,
+} from "../services/previousGame_service";
+import {
+	createAverageReactionTime,
+	getBestAverageReactionTime,
+} from "../services/averageReactionTime_service";
 
 // Create a new debug instance
-const debug = Debug('ktv:socket_controller')
+const debug = Debug("ktv:socket_controller");
 
 /**
  * clickVirus Controller
  */
-export const listenForVirusClick = (socket: Socket<ClientToServerEvents, ServerToClientEvents>) => {
-	socket.on('clickVirus', async (timeTakenToClick) => {
+export const listenForVirusClick = (
+	socket: Socket<ClientToServerEvents, ServerToClientEvents>,
+) => {
+	socket.on("clickVirus", async (timeTakenToClick) => {
 		try {
-			const user = await getUserById(socket.id)
-			if (!user) return
+			const user = await getUserById(socket.id);
+			if (!user) return;
 
-			// Update the users virusClicked to 'true'
-			await updateUsersVirusClicked(user.id, { virusClicked: true })
+			let gameRoom = await findGameRoomById(user.gameRoomId);
+			if (!gameRoom) return;
 
-			let gameRoom = await findGameRoomById(user.gameRoomId)
-			if (!gameRoom) return
+			// If someone already clicked this round, ignore the late click
+			const alreadyClicked = gameRoom.users.some((u) => u.virusClicked);
+			if (alreadyClicked) return;
 
-			// Save each players reaction time in the database
-			await createReactionTime(timeTakenToClick, user.id)
+			// Mark this user as the one who clicked first
+			await updateUsersVirusClicked(user.id, { virusClicked: true });
 
-			// Get and emit the best everReactionTime
-			const bestEverReactionTime = await getBestEverReactionTime()
-			const userName = bestEverReactionTime?.user?.name ?? null
-			const time = bestEverReactionTime?.time ?? null
-			io.emit('bestEverReactionTime', userName, time)
+			// Save the winner's reaction time in the database
+			await createReactionTime(timeTakenToClick, user.id);
 
-			socket.broadcast.to(gameRoom.id).emit('reactionTime', timeTakenToClick)
+			// Get and emit the best ever reaction time
+			const bestEverReactionTime = await getBestEverReactionTime();
+			const userName = bestEverReactionTime?.user?.name ?? null;
+			const time = bestEverReactionTime?.time ?? null;
+			io.emit("bestEverReactionTime", userName, time);
 
-			// Counts how many viruses are clicked by users (from 0 to 2)
-			let virusesGone = 0
-			
-			// Check every players 'virusClicked'. If it's 'true' increase 'virusesGone' by 1
-			gameRoom.users.forEach(user => {
-				if (user.virusClicked) virusesGone++
-			})
+			// Award the point to the first clicker
+			await updateUsersScore(user.id);
 
-			// Check if both players viruses are clicked
-			if (virusesGone !== gameRoom.userCount) return
+			const players = await getUsersInRoom(gameRoom.id);
+			const player1Score = players[0].score ?? 0;
+			const player2Score = players[1].score ?? 0;
+			const player1Id = players[0].id;
 
-			// Reset virusClicked for each player
-			gameRoom.users.forEach(async (user) => {
-				await updateUsersVirusClicked(user.id, { virusClicked: false })
-			})
+			// Update scores for both players
+			io.to(gameRoom.id).emit(
+				"updateScore",
+				player1Score,
+				player2Score,
+				player1Id,
+			);
 
-			await updateScores(gameRoom.id)
+			// Broadcast live game data
+			const liveGamePayload = {
+				player1Username: players[0].name,
+				player1Score,
+				player2Username: players[1].name,
+				player2Score,
+				gameRoomId: gameRoom.id,
+			};
+			io.emit("liveGame", liveGamePayload);
 
-			gameRoom = await updateGameRoomsRoundCount(gameRoom.id)
+			// Tell both players who won this round
+			io.to(gameRoom.id).emit(
+				"roundWon",
+				user.id,
+				user.name,
+				timeTakenToClick,
+			);
 
-			// For every round
-			if (gameRoom.roundCount <= 10) {
-				// Get the virus information
-				const virusData = calcVirusData()
-				const newRoundPayload: NewRoundData = {
-					row: virusData.row,
-					column: virusData.column,
-					delay: virusData.delay,
-				}
-				// Give the next virus to both players
-				io.to(gameRoom.id).emit('newRound', newRoundPayload)
+			// Reset virusClicked for next round
+			for (const u of gameRoom.users) {
+				await updateUsersVirusClicked(u.id, { virusClicked: false });
 			}
-			// When the game ends
-			else {
-				// Returns an array of UserData objects for every user
-				const userDataArray = await Promise.all(gameRoom.users.map(async (user) => {
-					const reactionTimes = await findReactionTimesByUserId(user.id)
 
-					const averageReactionTime = Number(calcAverageReactionTime(reactionTimes).toFixed(3))
+			gameRoom = await updateGameRoomsRoundCount(gameRoom.id);
 
-					// Save the average reaction time for each player in the database
-					await createAverageReactionTime(user.name, averageReactionTime)
+			// Short pause so players can see the round result, then next round
+			setTimeout(async () => {
+				try {
+					if (gameRoom.roundCount <= 10) {
+						const virusData = calcVirusData();
+						io.to(gameRoom.id).emit("newRound", {
+							row: virusData.row,
+							column: virusData.column,
+							delay: virusData.delay,
+						});
+					} else {
+						// ── Game over ──
+						const userDataArray = await Promise.all(
+							gameRoom.users.map(async (u) => {
+								const reactionTimes =
+									await findReactionTimesByUserId(u.id);
+								const avg = reactionTimes.length
+									? Number(
+											calcAverageReactionTime(
+												reactionTimes,
+											).toFixed(3),
+										)
+									: 0;
+								await createAverageReactionTime(u.name, avg);
+								return {
+									id: u.id,
+									name: u.name,
+									gameRoomId: gameRoom!.id,
+									score: u.score!,
+									averageReactionTime: avg,
+								};
+							}),
+						);
 
-					return {
-						id: user.id,
-						name: user.name,
-						gameRoomId: gameRoom!.id,
-						score: user.score!,
-						averageReactionTime,
+						io.to(gameRoom.id).emit("endGame", userDataArray);
+
+						const [p1, p2] = gameRoom.users;
+						await createPreviousGame(
+							p1.name,
+							p2.name,
+							p1.score!,
+							p2.score!,
+						);
+
+						const latestGamesCount = await countPreviousGames();
+						if (latestGamesCount > 10) {
+							const oldestGame = await getOldestGame();
+							if (oldestGame)
+								await deleteOldestGame(oldestGame.id);
+						}
+
+						const latestGames = await getPreviousGames();
+						io.emit("tenLatestGames", latestGames);
+
+						const bestAvg = await getBestAverageReactionTime();
+						io.emit(
+							"bestAverageReactionTime",
+							bestAvg?.name ?? null,
+							bestAvg?.averageReactionTime ?? 0,
+						);
+
+						io.emit("removeLiveGame", gameRoom.id);
+						deleteGameRoom(gameRoom.id);
 					}
-				}))
-
-				io.to(gameRoom.id).emit('endGame', userDataArray)
-
-				const [player1, player2] = gameRoom.users
-
-				// Before removing the room and user add the game to the ten latest games in database
-				await createPreviousGame(player1.name, player2.name, player1.score!, player2.score!)
-
-				// Count how many games there are in tenLatestGames
-				const latestGamesCount = await countPreviousGames()
-
-				if (latestGamesCount > 10) {
-					// Find oldest game
-					const oldestGame = await getOldestGame()
-					if (!oldestGame) return
-
-					// Delete oldest game
-					await deleteOldestGame(oldestGame.id)
+				} catch (err) {
+					debug("ERROR in delayed round/endgame logic", err);
 				}
-
-				// Get and emit the latetsGames
-				const latestGames = await getPreviousGames()
-				io.emit('tenLatestGames', latestGames)
-
-				// Get and emit the bestAverageReactionTime
-				const bestAverageReactionTime = await getBestAverageReactionTime()
-				const name = bestAverageReactionTime?.name ?? null
-				const averageReactionTime = bestAverageReactionTime?.averageReactionTime ?? 0
-				io.emit('bestAverageReactionTime', name, averageReactionTime)
-
-				// Delete the gameRoom from the database and live games
-				io.emit('removeLiveGame', gameRoom.id)
-				deleteGameRoom(user.gameRoomId)
-			}
+			}, 1500); // 1.5 s pause between rounds
+		} catch (err) {
+			debug("ERROR clicking the virus!", err);
 		}
-		catch (err) {
-			debug('ERROR clicking the virus!', err)
-		}
-	})
-}
+	});
+};
