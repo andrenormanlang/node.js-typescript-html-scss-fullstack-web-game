@@ -17,6 +17,7 @@ import {
 	getUsersInRoom,
 	updateUsersScore,
 	updateUsersVirusClicked,
+	deleteUsersInRoom,
 } from "../services/user_service";
 import {
 	ClientToServerEvents,
@@ -175,7 +176,16 @@ export const listenForVirusClick = (
 						);
 
 						io.emit("removeLiveGame", gameRoomId);
-						deleteGameRoom(gameRoomId);
+						try {
+							// remove users in the room first, then delete the room
+							await deleteUsersInRoom(gameRoomId);
+							await deleteGameRoom(gameRoomId);
+						} catch (err) {
+							debug(
+								"ERROR deleting finished game room or its users",
+								err,
+							);
+						}
 					}
 				} catch (err) {
 					debug("ERROR in delayed round/endgame logic", err);

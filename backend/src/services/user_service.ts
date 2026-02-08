@@ -57,3 +57,7 @@ export const updateScore = (
 export const deleteUser = (userId: string) => {
 	return prisma.user.delete({ where: { id: userId } });
 };
+
+export const deleteUsersInRoom = (gameRoomId: string) => {
+	return prisma.user.deleteMany({ where: { gameRoomId } });
+};
