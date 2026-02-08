@@ -4,6 +4,8 @@ import {
 	deleteGameRoom,
 	findGameRoomById,
 	updateGameRoomsRoundCount,
+	markGameRoomLockedIfNotLocked,
+	setGameRoomRoundLocked,
 } from "../services/gameRoom_service";
 import {
 	createReactionTime,
@@ -49,15 +51,13 @@ export const listenForVirusClick = (
 			const user = await getUserById(socket.id);
 			if (!user) return;
 
-			let gameRoom = await findGameRoomById(user.gameRoomId);
-			if (!gameRoom) return;
+				const gameRoom = await findGameRoomById(user.gameRoomId);
+				if (!gameRoom) return;
+				const gameRoomId = gameRoom.id;
 
-			// If someone already clicked this round, ignore the late click
-			const alreadyClicked = gameRoom.users.some((u) => u.virusClicked);
-			if (alreadyClicked) return;
-
-			// Mark this user as the one who clicked first
-			await updateUsersVirusClicked(user.id, { virusClicked: true });
+			// Atomically lock the room for this round so only the first clicker wins.
+				const lockResult = await markGameRoomLockedIfNotLocked(gameRoomId);
+			if (lockResult.count === 0) return; // someone else already claimed this round
 
 			// Save the winner's reaction time in the database
 			await createReactionTime(timeTakenToClick, user.id);
@@ -102,19 +102,23 @@ export const listenForVirusClick = (
 				timeTakenToClick,
 			);
 
-			// Reset virusClicked for next round
-			for (const u of gameRoom.users) {
+			// Reset user virusClicked flags for next round (set false for all users in room)
+			const usersInRoom = await getUsersInRoom(gameRoom.id);
+			for (const u of usersInRoom) {
 				await updateUsersVirusClicked(u.id, { virusClicked: false });
 			}
 
-			gameRoom = await updateGameRoomsRoundCount(gameRoom.id);
+				const updatedGameRoom = await updateGameRoomsRoundCount(gameRoomId);
 
 			// Short pause so players can see the round result, then next round
 			setTimeout(async () => {
 				try {
-					if (gameRoom.roundCount <= 10) {
+						if (updatedGameRoom.roundCount <= 10) {
+						// Unlock the room so next round can be claimed
+							await setGameRoomRoundLocked(gameRoomId, false);
+
 						const virusData = calcVirusData();
-						io.to(gameRoom.id).emit("newRound", {
+							io.to(gameRoomId).emit("newRound", {
 							row: virusData.row,
 							column: virusData.column,
 							delay: virusData.delay,
@@ -122,7 +126,7 @@ export const listenForVirusClick = (
 					} else {
 						// ── Game over ──
 						const userDataArray = await Promise.all(
-							gameRoom.users.map(async (u) => {
+								updatedGameRoom.users.map(async (u) => {
 								const reactionTimes =
 									await findReactionTimesByUserId(u.id);
 								const avg = reactionTimes.length
@@ -136,16 +140,16 @@ export const listenForVirusClick = (
 								return {
 									id: u.id,
 									name: u.name,
-									gameRoomId: gameRoom!.id,
+										gameRoomId,
 									score: u.score!,
 									averageReactionTime: avg,
 								};
 							}),
 						);
 
-						io.to(gameRoom.id).emit("endGame", userDataArray);
+							io.to(gameRoomId).emit("endGame", userDataArray);
 
-						const [p1, p2] = gameRoom.users;
+							const [p1, p2] = updatedGameRoom.users;
 						await createPreviousGame(
 							p1.name,
 							p2.name,
@@ -170,8 +174,8 @@ export const listenForVirusClick = (
 							bestAvg?.averageReactionTime ?? 0,
 						);
 
-						io.emit("removeLiveGame", gameRoom.id);
-						deleteGameRoom(gameRoom.id);
+							io.emit("removeLiveGame", gameRoomId);
+							deleteGameRoom(gameRoomId);
 					}
 				} catch (err) {
 					debug("ERROR in delayed round/endgame logic", err);

@@ -1,4 +1,4 @@
-import "./assets/scss/style.scss";
+import "./assets/css/style.css";
 import { io, Socket } from "socket.io-client";
 import {
 	ClientToServerEvents,

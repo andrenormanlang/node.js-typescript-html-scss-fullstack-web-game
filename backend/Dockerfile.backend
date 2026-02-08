@@ -12,6 +12,9 @@ RUN npm install
 COPY . .
 # COPY .env .env
 
+# Generate Prisma Client based on the copied schema
+RUN npx prisma generate
+
 # Build the project (adjust if you have a specific build command)
 RUN npm run build
 
