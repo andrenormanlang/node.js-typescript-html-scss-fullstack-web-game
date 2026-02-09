@@ -7,6 +7,24 @@ import {
 	VirusData,
 } from "@backend/types/shared/socket_types";
 
+// Wake Render API on site open (best-effort, non-blocking)
+const WAKE_URL = "https://kill-the-virus-full-stack-game.onrender.com/";
+function wakeApi() {
+	try {
+		// Fire-and-forget; use no-cors so a CORS failure won't break the app
+		fetch(WAKE_URL, { method: "GET", mode: "no-cors" });
+		// repeat once shortly after to reduce chance of long cold starts
+		setTimeout(
+			() => fetch(WAKE_URL, { method: "GET", mode: "no-cors" }),
+			2000,
+		);
+	} catch (e) {
+		// swallow errors; waking is best-effort
+	}
+}
+if (document.readyState === "complete") wakeApi();
+else window.addEventListener("load", wakeApi);
+
 const SOCKET_HOST = import.meta.env.VITE_APP_SOCKET_HOST;
 const socket: Socket<ServerToClientEvents, ClientToServerEvents> =
 	io(SOCKET_HOST);
