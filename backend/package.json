@@ -7,10 +7,11 @@
     "build": "tsc",
     "dev": "cross-env DEBUG=ktv:* nodemon server.ts",
     "start": "node build/server.js",
+    "vercel-start": "node build/server.js",
     "postinstall": "npx prisma generate"
   },
   "engines": {
-    "node": "18.x"
+    "node": "22.x"
   },
   "keywords": [],
   "author": "",
