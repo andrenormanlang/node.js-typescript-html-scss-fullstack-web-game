@@ -1,9 +1,6 @@
 name: Build and deploy backend to Azure Web App
 
 on:
-    push:
-        branches:
-            - main
     workflow_dispatch:
 
 permissions:
@@ -36,6 +33,14 @@ jobs:
               run: |
                   cd backend
                   zip -r ../backend-deploy.zip . -x "node_modules/*"
+
+            - name: Verify deployment package contents
+              run: |
+                  ls -la
+                  echo "---- ZIP top entries ----"
+                  unzip -l backend-deploy.zip | head -n 60
+                  echo "---- package.json presence ----"
+                  unzip -l backend-deploy.zip | grep -E "(^| )package\.json$" || (echo "package.json NOT found in zip" && exit 1)
 
             - name: Validate publish profile secret
               env:
