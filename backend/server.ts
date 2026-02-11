@@ -12,6 +12,18 @@ import {
 // Initialize dotenv so it reads our `.env` file
 dotenv.config();
 
+function parseCorsOrigins(value: string | undefined): string[] {
+	if (!value) return [];
+	return value
+		.split(",")
+		.map((s) => s.trim())
+		.filter(Boolean);
+}
+
+const allowedOrigins = parseCorsOrigins(
+	process.env.CORS_ORIGINS || process.env.CORS_ORIGIN,
+);
+
 // Read port to start server on from `.env`, otherwise default to port 3000
 const PORT = process.env.PORT || 3001;
 
@@ -42,8 +54,8 @@ export const io = new Server<ClientToServerEvents, ServerToClientEvents>(
 	httpServer,
 	{
 		cors: {
-			origin: process.env.CORS_ORIGIN || "*",
-			credentials: true,
+			origin: allowedOrigins.length > 0 ? allowedOrigins : true,
+			credentials: allowedOrigins.length > 0,
 		},
 	},
 );
