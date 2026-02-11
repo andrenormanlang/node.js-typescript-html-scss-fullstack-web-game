@@ -32,14 +32,10 @@ jobs:
               working-directory: backend
               run: npm run build
 
-            - name: Prune to production dependencies
-              working-directory: backend
-              run: npm prune --omit=dev
-
             - name: Create deployment package
               run: |
                   cd backend
-                  zip -r ../backend-deploy.zip .
+                  zip -r ../backend-deploy.zip . -x "node_modules/*"
 
             - name: Validate publish profile secret
               env:
