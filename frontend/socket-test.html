@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+  <body>
+    <pre id="out">Connecting…</pre>
+
+    <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+    <script>
+      const out = (msg) => (document.getElementById("out").textContent += "\n" + msg);
+
+      const socket = io("https://ktv-api-a6dhhhczcnepfebb.polandcentral-01.azurewebsites.net", {
+        path: "/socket.io",
+        transports: ["websocket"],   // <- force WS (no polling fallback)
+        withCredentials: false
+      });
+
+      socket.on("connect", () => out("✅ connected: " + socket.id));
+      socket.on("connect_error", (e) => out("❌ connect_error: " + e.message));
+      socket.on("disconnect", (r) => out("⚠️ disconnected: " + r));
+    </script>
+  </body>
+</html>

@@ -216,6 +216,16 @@ main {
 .record-label { color: $muted; }
 .record-value { color: $gold; font-weight: 600; }
 
+.record-list {
+  margin: 0;
+  padding: 0;
+
+  li {
+    padding: .35rem .6rem;
+    font-size: .6rem;
+  }
+}
+
 // ----- Game lists -----
 .game-list {
   list-style: none;

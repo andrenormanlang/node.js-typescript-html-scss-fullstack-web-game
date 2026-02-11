@@ -10,7 +10,10 @@ import {
 	LiveGameData,
 	ServerToClientEvents,
 } from "../types/shared/socket_types";
-import { getBestEverReactionTime } from "../services/reactionTime_service";
+import {
+	getBestEverReactionTime,
+	getBestEverReactionTimeTop3,
+} from "../services/reactionTime_service";
 import {
 	deleteGameRoom,
 	findGameRoomById,
@@ -19,7 +22,10 @@ import {
 import { listenForVirusClick } from "./clickVirus_controller";
 import { availableGameRooms, listenForUserJoin } from "./userJoin_controller";
 import { getPreviousGames } from "../services/previousGame_service";
-import { getBestAverageReactionTime } from "../services/averageReactionTime_service";
+import {
+	getBestAverageReactionTime,
+	getBestAverageReactionTimeTop3,
+} from "../services/averageReactionTime_service";
 
 // Create a new debug instance
 const debug = Debug("ktv:socket_controller");
@@ -70,11 +76,13 @@ export const handleConnection = async (
 	// Get and emit the bestEverReactionTime
 	try {
 		const bestEverReactionTime = await getBestEverReactionTime();
-
-		const userName = bestEverReactionTime?.user?.name ?? null;
+		const userName = bestEverReactionTime?.name ?? null;
 		const time = bestEverReactionTime?.time ?? null;
 
 		socket.emit("bestEverReactionTime", userName, time);
+
+		const top3 = await getBestEverReactionTimeTop3();
+		socket.emit("bestEverReactionTimeTop3", top3);
 	} catch (err) {
 		debug("Could not get the bestEverReactionTime");
 	}
@@ -85,9 +93,12 @@ export const handleConnection = async (
 
 		const userName = bestAverageReactionTime?.name ?? null;
 		const averageReactionTime =
-			bestAverageReactionTime?.averageReactionTime ?? 0;
+			bestAverageReactionTime?.averageReactionTime ?? null;
 
 		socket.emit("bestAverageReactionTime", userName, averageReactionTime);
+
+		const top3 = await getBestAverageReactionTimeTop3();
+		socket.emit("bestAverageReactionTimeTop3", top3);
 	} catch (err) {
 		debug("Could not get the bestAverageReactionTime");
 	}

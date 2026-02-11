@@ -2,6 +2,8 @@ import "./assets/css/style.css";
 import { io, Socket } from "socket.io-client";
 import {
 	ClientToServerEvents,
+	BestAverageReactionTimeEntry,
+	BestReactionTimeEntry,
 	PlayerData,
 	ServerToClientEvents,
 	VirusData,
@@ -102,6 +104,13 @@ const noRecentGamesEl = document.querySelector(
 	"#noRecentGames",
 ) as HTMLParagraphElement;
 
+const highScoreTop3El = document.querySelector(
+	"#highScoreTop3",
+) as HTMLUListElement;
+const averageHighScoreTop3El = document.querySelector(
+	"#averageHighScoreTop3",
+) as HTMLUListElement;
+
 // ──── State ────
 let username: string | null = null;
 let timerInterval: ReturnType<typeof setInterval> | null = null;
@@ -116,6 +125,27 @@ function showView(view: "lobby" | "game" | "end") {
 	lobbyEl.style.display = view === "lobby" ? "" : "none";
 	gameEl.style.display = view === "game" ? "flex" : "none";
 	endGameBoardEl.style.display = view === "end" ? "flex" : "none";
+}
+
+function renderTop3List<T>(
+	el: HTMLUListElement,
+	entries: T[],
+	format: (entry: T) => string,
+) {
+	el.replaceChildren();
+
+	if (!entries || entries.length === 0) {
+		const li = document.createElement("li");
+		li.textContent = "—";
+		el.appendChild(li);
+		return;
+	}
+
+	entries.slice(0, 3).forEach((entry, idx) => {
+		const li = document.createElement("li");
+		li.textContent = `${idx + 1}. ${format(entry)}`;
+		el.appendChild(li);
+	});
 }
 
 /** Render the 10 round-dots in the sidebar */
@@ -239,14 +269,44 @@ socket.on("tenLatestGames", (latestGames) => {
 // Best reaction time
 socket.on("bestEverReactionTime", (name, time) => {
 	const el = document.querySelector("#highScore")!;
-	el.textContent = name && time ? `${name} — ${time}s` : "—";
+	if (time == null) {
+		el.textContent = "—";
+		return;
+	}
+	const formatted = Number(time).toFixed(3);
+	el.textContent = name ? `${name} — ${formatted}s` : `${formatted}s`;
+});
+
+socket.on("bestEverReactionTimeTop3", (entries: BestReactionTimeEntry[]) => {
+	renderTop3List(
+		highScoreTop3El,
+		entries,
+		(e) => `${e.name} — ${Number(e.time).toFixed(3)}s`,
+	);
 });
 
 // Best average
 socket.on("bestAverageReactionTime", (name, time) => {
 	const el = document.querySelector("#averageHighScore")!;
-	el.textContent = name && time ? `${name} — ${time}s` : "—";
+	if (time == null) {
+		el.textContent = "—";
+		return;
+	}
+
+	const formatted = Number(time).toFixed(3);
+	el.textContent = name ? `${name} — ${formatted}s` : `${formatted}s`;
 });
+
+socket.on(
+	"bestAverageReactionTimeTop3",
+	(entries: BestAverageReactionTimeEntry[]) => {
+		renderTop3List(
+			averageHighScoreTop3El,
+			entries,
+			(e) => `${e.name} — ${Number(e.averageReactionTime).toFixed(3)}s`,
+		);
+	},
+);
 
 // Live game update
 socket.on("liveGame", (data) => {

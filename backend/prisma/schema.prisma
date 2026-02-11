@@ -46,3 +46,23 @@ model AverageReactionTime {
     name                String
     averageReactionTime Float
 }
+
+// Keep names only for the top 3 scores
+model BestReactionTime {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    name      String
+    time      Float
+    createdAt DateTime @default(now())
+
+    @@index([time])
+}
+
+// Keep names only for the top 3 scores
+model BestAverageReactionTime {
+    id                  String   @id @default(auto()) @map("_id") @db.ObjectId
+    name                String
+    averageReactionTime Float
+    createdAt           DateTime @default(now())
+
+    @@index([averageReactionTime])
+}

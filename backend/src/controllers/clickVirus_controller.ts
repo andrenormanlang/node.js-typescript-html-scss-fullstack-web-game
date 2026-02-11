@@ -11,6 +11,8 @@ import {
 	createReactionTime,
 	findReactionTimesByUserId,
 	getBestEverReactionTime,
+	getBestEverReactionTimeTop3,
+	updateBestReactionTimesTop3,
 } from "../services/reactionTime_service";
 import {
 	getUserById,
@@ -34,8 +36,9 @@ import {
 	createPreviousGame,
 } from "../services/previousGame_service";
 import {
-	createAverageReactionTime,
 	getBestAverageReactionTime,
+	getBestAverageReactionTimeTop3,
+	updateBestAverageReactionTimesTop3,
 } from "../services/averageReactionTime_service";
 
 // Create a new debug instance
@@ -62,12 +65,16 @@ export const listenForVirusClick = (
 
 			// Save the winner's reaction time in the database
 			await createReactionTime(timeTakenToClick, user.id);
+			await updateBestReactionTimesTop3(user.name, timeTakenToClick);
 
 			// Get and emit the best ever reaction time
 			const bestEverReactionTime = await getBestEverReactionTime();
-			const userName = bestEverReactionTime?.user?.name ?? null;
+			const userName = bestEverReactionTime?.name ?? null;
 			const time = bestEverReactionTime?.time ?? null;
 			io.emit("bestEverReactionTime", userName, time);
+
+			const top3 = await getBestEverReactionTimeTop3();
+			io.emit("bestEverReactionTimeTop3", top3);
 
 			// Award the point to the first clicker
 			await updateUsersScore(user.id);
@@ -139,7 +146,7 @@ export const listenForVirusClick = (
 												).toFixed(3),
 											)
 										: 0;
-									await createAverageReactionTime(
+									await updateBestAverageReactionTimesTop3(
 										u.name,
 										avg,
 									);
@@ -179,8 +186,12 @@ export const listenForVirusClick = (
 							io.emit(
 								"bestAverageReactionTime",
 								bestAvg?.name ?? null,
-								bestAvg?.averageReactionTime ?? 0,
+								bestAvg?.averageReactionTime ?? null,
 							);
+
+							const top3Avg =
+								await getBestAverageReactionTimeTop3();
+							io.emit("bestAverageReactionTimeTop3", top3Avg);
 						} catch (err) {
 							debug("ERROR during end-game side effects", err);
 						}

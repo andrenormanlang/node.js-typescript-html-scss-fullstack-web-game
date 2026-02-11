@@ -33,7 +33,11 @@ export interface ServerToClientEvents {
 	) => void;
 	bestAverageReactionTime: (
 		userName: string | null,
-		averageReactionTime: number,
+		averageReactionTime: number | null,
+	) => void;
+	bestEverReactionTimeTop3: (entries: BestReactionTimeEntry[]) => void;
+	bestAverageReactionTimeTop3: (
+		entries: BestAverageReactionTimeEntry[],
 	) => void;
 	opponentLeft: () => void;
 }
@@ -94,4 +98,14 @@ export interface LatestGamesData {
 	player2: string;
 	player1Score: number;
 	player2Score: number;
+}
+
+export interface BestReactionTimeEntry {
+	name: string;
+	time: number;
+}
+
+export interface BestAverageReactionTimeEntry {
+	name: string;
+	averageReactionTime: number;
 }

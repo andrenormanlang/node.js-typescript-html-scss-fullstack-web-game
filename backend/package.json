@@ -4,6 +4,7 @@
   "description": "",
   "main": "build/server.js",
   "scripts": {
+    "prebuild": "npx prisma generate",
     "build": "tsc",
     "dev": "cross-env DEBUG=ktv:* nodemon server.ts",
     "start": "node build/server.js",
