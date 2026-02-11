@@ -41,9 +41,18 @@ jobs:
                   cd backend
                   zip -r ../backend-deploy.zip .
 
+            - name: Validate publish profile secret
+              env:
+                PUBLISH_PROFILE: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE || secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
+              run: |
+                if [ -z "$PUBLISH_PROFILE" ]; then
+                  echo "Missing publish profile secret. Set either AZURE_WEBAPP_PUBLISH_PROFILE or AZUREAPPSERVICE_PUBLISHPROFILE in GitHub repo secrets."
+                  exit 1
+                fi
+
             - name: Deploy to Azure Web App
               uses: azure/webapps-deploy@v3
               with:
                   app-name: ktv-api
-                  publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+                  publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE || secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
                   package: backend-deploy.zip
